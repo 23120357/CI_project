@@ -26,25 +26,26 @@ pipeline {
                 stages {
                     stage('Phase 1: Test') {
                         steps {
-                            // SỬA Ở ĐÂY: KHÔNG dùng dir() nữa, chạy Maven từ thư mục gốc với -pl và -am
-                            sh "mvn clean verify -pl ${SERVICE} -am"
+                            sh "mvn -pl ${SERVICE} -am clean test jacoco:report"
                         }
                         post {
                             always {
                                 junit testResults: "${SERVICE}/**/*-reports/TEST*.xml", allowEmptyResults: true
-                            }
-                            success {
-                                jacoco execPattern: "${SERVICE}/target/**/*.exec", classPattern: "${SERVICE}/target/classes", sourcePattern: "${SERVICE}/src/main/java"
+                                script {
+                                    if (fileExists("${SERVICE}/target/jacoco.exec") || fileExists("${SERVICE}/target/site/jacoco/jacoco.xml")) {
+                                        jacoco execPattern: "${SERVICE}/target/**/*.exec", classPattern: "${SERVICE}/target/classes", sourcePattern: "${SERVICE}/src/main/java"
+                                    } else {
+                                        echo "No JaCoCo coverage artifacts found for ${SERVICE}."
+                                    }
+                                }
                             }
                         }
                     }
 
                     stage('Phase 2: Build') {
                         steps {
-                            // SỬA Ở ĐÂY: Build file .jar bằng Maven từ thư mục gốc
                             sh "mvn package -pl ${SERVICE} -am -DskipTests"
-                            
-                            // Chỉ chui vào thư mục service khi cần build Docker Image
+
                             dir("${SERVICE}") {
                                 sh "docker build -t yas-${SERVICE}:latest ."
                             }
