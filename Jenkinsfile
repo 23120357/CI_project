@@ -1,114 +1,54 @@
 pipeline {
     agent any
-    
+
     tools {
-        maven 'Maven-3.9.0'  // Tên Maven đã cấu hình trong Jenkins
-        jdk 'JDK-17'         // Tên JDK đã cấu hình trong Jenkins
+        maven 'Maven3'
     }
-    
-    stage('Test') {
-        steps {
-            script {
-                // Cách 1: Lấy danh sách service từ cấu trúc thư mục
-                def allServices = sh(
-                    script: """ls -d */ | grep -v '^\.' | sed 's/\\/$//' | grep -E '(-service$|bff$|webhook$)'""",
-                    returnStdout: true
-                ).trim().split('\n')
-                
-                // Cách 2: Lấy các file đã thay đổi
-                def changedFiles = sh(
-                    script: "git diff --name-only HEAD^ HEAD",
-                    returnStdout: true
-                ).trim().split('\n')
-                
-                // Tìm service bị thay đổi
-                def changedServices = []
-                for (file in changedFiles) {
-                    for (service in allServices) {
-                        if (file.startsWith(service + '/')) {
-                            changedServices.add(service)
-                            break
-                        }
+
+    stages {
+        stage('CI Matrix') {
+            matrix {
+                axes {
+                    axis {
+                        name 'SERVICE'
+                        values 'backoffice-bff', 'backoffice', 'cart', 'customer', 'inventory', 'location', 'media', 'order', 'payment', 'payment-paypal', 'product', 'promotion', 'rating'
                     }
                 }
-                
-                // Loại bỏ trùng lặp
-                changedServices = changedServices.unique()
-                
-                if (changedServices.isEmpty()) {
-                    echo "No service changed, skipping tests"
-                    return
-                }
-                
-                echo "Changed services: ${changedServices}"
-                
-                // Chạy test song song cho nhiều service
-                def parallelStages = [:]
-                for (service in changedServices) {
-                    parallelStages[service] = {
-                        dir(service) {
-                            sh 'mvn clean test'
-                        }
+
+                when {
+                    anyOf {
+                        changeset "${SERVICE}/**"
+                        changeset 'pom.xml'
                     }
                 }
-                parallel parallelStages
-            }
-        }
-        
-        post {
-            always {
-                // Upload tất cả test reports từ mọi service
-                junit '**/target/surefire-reports/*.xml'
-                publishCoverage adapters: [
-                    jacocoAdapter('**/target/site/jacoco/jacoco.xml')
-                ]
-            }
-        }
-    }        
-        // ========== PHASE 2: BUILD ==========
-        stage('Build') {
-            steps {
-                script {
-                    def changedServices = sh(
-                        script: "git diff --name-only HEAD^ HEAD | cut -d'/' -f1 | sort -u",
-                        returnStdout: true
-                    ).trim()
-                    
-                    echo "Building services: ${changedServices}"
-                    
-                    // Build từng service bị thay đổi
-                    if (changedServices.contains('media-service')) {
-                        dir('media-service') {
-                            sh 'mvn clean compile'
+
+                stages {
+                    stage('Phase 1: Test') {
+                        steps {
+                            dir("${SERVICE}") {
+                                sh 'mvn clean verify'
+                            }
+                        }
+                        post {
+                            always {
+                                junit testResults: "${SERVICE}/**/*-reports/TEST*.xml", allowEmptyResults: true
+                            }
+                            success {
+                                jacoco execPattern: "${SERVICE}/target/**/*.exec", classPattern: "${SERVICE}/target/classes", sourcePattern: "${SERVICE}/src/main/java"
+                            }
                         }
                     }
-                    
-                    if (changedServices.contains('product-service')) {
-                        dir('product-service') {
-                            sh 'mvn clean compile'
-                        }
-                    }
-                    
-                    if (changedServices.contains('cart-service')) {
-                        dir('cart-service') {
-                            sh 'mvn clean compile'
+
+                    stage('Phase 2: Build') {
+                        steps {
+                            dir("${SERVICE}") {
+                                sh 'mvn package -DskipTests'
+                                sh "docker build -t yas-${SERVICE}:latest ."
+                            }
                         }
                     }
                 }
             }
-        }
-    }
-    
-    post {
-        always {
-            // Dọn dẹp workspace sau khi pipeline kết thúc
-            cleanWs()
-        }
-        success {
-            echo 'Pipeline executed successfully!'
-        }
-        failure {
-            echo 'Pipeline failed!'
         }
     }
 }
