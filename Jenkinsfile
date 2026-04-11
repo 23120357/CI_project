@@ -12,10 +12,11 @@ pipeline {
                 axes {
                     axis {
                         name 'SERVICE'
-                        values 'backoffice-bff', 'backoffice', 'cart', 'customer', 'inventory', 'location', 'media', 'order', 'payment', 'payment-paypal', 'product', 'promotion', 'rating'
+                        values 'backoffice-bff', 'backoffice', 'storefront', 'storefront-bff',  'cart', 'customer', 'inventory', 'location', 'media', 'order', 'payment', 'payment-paypal', 'product', 'promotion', 'rating', 'tax', 'search', 'webhook'
                     }
                 }
 
+                // Yêu cầu 6: Chỉ chạy service nào có file thay đổi
                 when {
                     anyOf {
                         changeset "${SERVICE}/**"
@@ -24,39 +25,54 @@ pipeline {
                 }
 
                 stages {
-                    stage('Phase 1: Test') {
+                    stage('Phase 1: Test & Coverage') {
                         steps {
-                            sh "mvn -pl ${SERVICE} -am clean test jacoco:report"
-                            sh '''
-                                if [ -f "${SERVICE}/target/site/jacoco/jacoco.csv" ]; then
-                                    LINE_COVERAGE=$(awk -F, 'NR>1{miss+=$6; covered+=$7} END {total=miss+covered; if (total>0) printf "%.2f", (covered*100)/total; else print "0.00"}' "${SERVICE}/target/site/jacoco/jacoco.csv")
-                                    echo "Line coverage for ${SERVICE}: ${LINE_COVERAGE}%"
-                                else
-                                    echo "No JaCoCo CSV report found for ${SERVICE}."
-                                fi
-                            '''
+                            // 1. Chạy Test an toàn từ gốc (Không còn lỗi thiếu common-library)
+                            echo "=== ĐANG CHẠY TEST CHO SERVICE: ${SERVICE} ==="
+                            sh "mvn clean verify -pl ${SERVICE} -am"
+
+                            // 2. Thuật toán trích xuất % Độ phủ code in ra Log
+                            script {
+                                def reportPath = "${SERVICE}/target/site/jacoco/index.html"
+                                if (fileExists(reportPath)) {
+                                    def coverageReport = readFile(file: reportPath)
+                                    // Dùng Regex tìm phần tfoot (chứa kết quả tổng)
+                                    def matcher = coverageReport =~ /<tfoot>(.*?)<\/tfoot>/
+                                    if (matcher.find()) {
+                                        def coverage = matcher[0][1]
+                                        // Dùng Regex tìm thẻ td chứa số %
+                                        def instructionMatcher = coverage =~ /<td class="ctr2">(.*?)%<\/td>/
+                                        if (instructionMatcher.find()) {
+                                            def coveragePercentage = instructionMatcher[0][1]
+                                            echo "====================================================="
+                                            echo " ĐỘ PHỦ CODE CỦA [${SERVICE.toUpperCase()}] ĐẠT: ${coveragePercentage}%"
+                                            echo "====================================================="
+                                        }
+                                    }
+                                } else {
+                                    echo " Không tìm thấy file report HTML để trích xuất %."
+                                }
+                            }
                         }
                         post {
                             always {
+                                // Yêu cầu 5: Upload Pass/Fail
                                 junit testResults: "${SERVICE}/**/*-reports/TEST*.xml", allowEmptyResults: true
-                                archiveArtifacts artifacts: "${SERVICE}/target/site/jacoco/**, ${SERVICE}/target/**/*.exec", allowEmptyArchive: true
-                                script {
-                                    if (fileExists("${SERVICE}/target/jacoco.exec") || fileExists("${SERVICE}/target/site/jacoco/jacoco.xml")) {
-                                        jacoco execPattern: "${SERVICE}/target/**/*.exec", 
-                                        classPattern: "${SERVICE}/target/classes", 
-                                        sourcePattern: "${SERVICE}/src/main/java"
-                                    } else {
-                                        echo "No JaCoCo coverage artifacts found for ${SERVICE}."
-                                    }
-                                }
+                            }
+                            success {
+                                // Yêu cầu 5: Vẽ biểu đồ Coverage UI
+                                jacoco execPattern: "${SERVICE}/target/**/*.exec", classPattern: "${SERVICE}/target/classes", sourcePattern: "${SERVICE}/src/main/java"
                             }
                         }
                     }
 
-                    stage('Phase 2: Build') {
+                    stage('Phase 2: Build Docker') {
                         steps {
+                            echo "=== 📦 ĐANG BUILD IMAGE CHO SERVICE: ${SERVICE} ==="
+                            // Đóng gói .jar từ gốc
                             sh "mvn package -pl ${SERVICE} -am -DskipTests"
-
+                            
+                            // Chui vào thư mục để chạy Dockerfile
                             dir("${SERVICE}") {
                                 sh "docker build -t yas-${SERVICE}:latest ."
                             }
