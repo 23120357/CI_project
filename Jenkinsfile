@@ -56,11 +56,21 @@ pipeline {
                         }
                         post {
                             always {
-                                // Yêu cầu 5: Upload Pass/Fail
+                                // 1. Upload Pass/Fail (Yêu cầu 5)
                                 junit testResults: "${SERVICE}/**/*-reports/TEST*.xml", allowEmptyResults: true
+                                
+                                // 2. Upload HTML Report lên giao diện Jenkins
+                                publishHTML(target: [
+                                    allowMissing: true, 
+                                    alwaysLinkToLastBuild: true,
+                                    keepAll: true,
+                                    reportDir: "${SERVICE}/target/site/jacoco",
+                                    reportFiles: 'index.html',
+                                    reportName: "HTML Report - ${SERVICE.toUpperCase()}"
+                                ])
                             }
                             success {
-                                // Yêu cầu 5: Vẽ biểu đồ Coverage UI
+                                // 3. Vẽ biểu đồ Coverage UI (Yêu cầu 5)
                                 jacoco execPattern: "${SERVICE}/target/**/*.exec", classPattern: "${SERVICE}/target/classes", sourcePattern: "${SERVICE}/src/main/java"
                             }
                         }
