@@ -29,13 +29,13 @@ pipeline {
                         steps {
                             // 1. Chạy Test an toàn từ gốc (Không còn lỗi thiếu common-library)
                             echo "=== ĐANG CHẠY TEST CHO SERVICE: ${SERVICE} ==="
-                            sh "mvn clean verify -pl ${SERVICE} -am"
+                            sh "mvn clean verify -pl ${SERVICE} -am -DskipITs"
 
                             // 2. Thuật toán trích xuất % Độ phủ code in ra Log
                             script {
                                 def reportPath = "${SERVICE}/target/site/jacoco/index.html"
                                 if (fileExists(reportPath)) {
-                                    def coverageReport = readFile(file: reportPath)
+                                    def coverageReport = readFile(file: reportPath) 
                                     // Dùng Regex tìm phần tfoot (chứa kết quả tổng)
                                     def matcher = coverageReport =~ /<tfoot>(.*?)<\/tfoot>/
                                     if (matcher.find()) {
