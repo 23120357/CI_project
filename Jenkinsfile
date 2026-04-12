@@ -12,7 +12,7 @@ pipeline {
                 axes {
                     axis {
                         name 'SERVICE'
-                        values 'backoffice-bff', 'backoffice', 'storefront', 'storefront-bff',  'cart', 'customer', 'inventory', 'location', 'media', 'order', 'payment', 'payment-paypal', 'product', 'promotion', 'rating', 'tax', 'search', 'webhook'
+                        values 'cart', 'customer', 'inventory', 'location', 'media', 'order', 'payment', 'payment-paypal', 'product', 'promotion', 'rating', 'tax', 'search', 'webhook'
                     }
                 }
 
@@ -69,13 +69,13 @@ pipeline {
                     stage('Phase 2: Build Docker') {
                         steps {
                             echo "=== 📦 ĐANG BUILD IMAGE CHO SERVICE: ${SERVICE} ==="
-                            // Đóng gói .jar từ gốc
-                            sh "mvn package -pl ${SERVICE} -am -DskipTests"
+                            // // Đóng gói .jar từ gốc
+                            // sh "mvn package -pl ${SERVICE} -am -DskipTests"
                             
-                            // Chui vào thư mục để chạy Dockerfile
-                            dir("${SERVICE}") {
-                                sh "docker build -t yas-${SERVICE}:latest ."
-                            }
+                            // // Chui vào thư mục để chạy Dockerfile
+                            // dir("${SERVICE}") {
+                            //     sh "docker build -t yas-${SERVICE}:latest ."
+                            // }
                         }
                     }
                 }
