@@ -7,13 +7,6 @@ pipeline {
     }
 
     stages {
-        stage('Check SCM') {
-            steps {
-                checkout scm
-                echo "=== CHECK SCM HOAN TAT ==="
-            }
-        }
-
         stage('Run Unit Test') {
             matrix {
                 axes {
