@@ -7,7 +7,14 @@ pipeline {
     }
 
     stages {
-        stage('CI Matrix') {
+        stage('Check SCM') {
+            steps {
+                checkout scm
+                echo "=== CHECK SCM HOAN TAT ==="
+            }
+        }
+
+        stage('Run Unit Test') {
             matrix {
                 axes {
                     axis {
@@ -25,7 +32,7 @@ pipeline {
                 }
 
                 stages {
-                    stage('Phase 1: Test & Coverage') {
+                    stage('Test & Coverage') {
                         steps {
                             // 1. Chạy Test an toàn từ gốc (Không còn lỗi thiếu common-library)
                             echo "=== ĐANG CHẠY TEST CHO SERVICE: ${SERVICE} ==="
@@ -75,8 +82,29 @@ pipeline {
                             }
                         }
                     }
+                }
+            }
+        }
 
-                    stage('Phase 2: Build Docker') {
+        stage('Build') {
+            matrix {
+                axes {
+                    axis {
+                        name 'SERVICE'
+                        values 'cart', 'customer', 'inventory', 'location', 'media', 'order', 'payment', 'payment-paypal', 'product', 'promotion', 'rating', 'tax', 'search', 'webhook'
+                    }
+                }
+
+                // Chỉ chạy service nào có file thay đổi
+                when {
+                    anyOf {
+                        changeset "${SERVICE}/**"
+                        changeset 'pom.xml'
+                    }
+                }
+
+                stages {
+                    stage('Build Docker') {
                         steps {
                             echo "=== 📦 ĐANG BUILD JAR & IMAGE CHO SERVICE: ${SERVICE} ==="
                             // 1. Đóng gói file .jar
