@@ -78,14 +78,22 @@ pipeline {
 
                     stage('Phase 2: Build Docker') {
                         steps {
-                            echo "=== 📦 ĐANG BUILD IMAGE CHO SERVICE: ${SERVICE} ==="
-                            // // Đóng gói .jar từ gốc
-                            // sh "mvn package -pl ${SERVICE} -am -DskipTests"
+                            echo "=== 📦 ĐANG BUILD JAR & IMAGE CHO SERVICE: ${SERVICE} ==="
+                            // 1. Đóng gói file .jar
+                            sh "mvn package -pl ${SERVICE} -am -DskipTests"
                             
-                            // // Chui vào thư mục để chạy Dockerfile
-                            // dir("${SERVICE}") {
-                            //     sh "docker build -t yas-${SERVICE}:latest ."
-                            // }
+                            // 2. Build Docker 
+                            dir("${SERVICE}") {
+                                sh "docker build -t yas-${SERVICE}:latest ."
+                            }
+                        }
+                        // Thêm khối post này để đẩy file lên Artifact của Jenkins
+                        post {
+                            success {
+                                echo "📤 Đang lưu trữ file JAR của ${SERVICE} vào Artifacts..."
+                                // Thu thập tất cả file .jar trong thư mục target của service đó
+                                archiveArtifacts artifacts: "${SERVICE}/target/*.jar", fingerprint: true
+                            }
                         }
                     }
                 }
