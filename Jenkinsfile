@@ -126,13 +126,13 @@ pipeline {
     agent any
     
     tools {
-        maven 'Maven3' 
-        jdk 'Java21'   
+        maven 'Maven-3.9.0' 
+        jdk 'JDK-21'   
     }
 
     // Ép Java21
     environment {
-        PATH_TO_JAVA = tool name: 'Java21', type: 'jdk'
+        PATH_TO_JAVA = tool name: 'JDK-21', type: 'jdk'
         JAVA_HOME = "${PATH_TO_JAVA}"
         PATH = "${PATH_TO_JAVA}/bin:${env.PATH}"
     }
